@@ -1,0 +1,47 @@
+name: Sync fork with upstream
+
+on:
+  schedule:
+    # Daily at 04:17 UTC (avoids the top-of-hour rush).
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-fork
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Fast-forward main from morluto/rea
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Fast-forward main from upstream
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B main origin/main
+          git remote add upstream https://github.com/morluto/rea.git
+          git fetch --no-tags upstream main
+
+          before=$(git rev-parse HEAD)
+          # Refuse to clobber local commits: only fast-forward is allowed.
+          git merge --ff-only upstream/main
+          after=$(git rev-parse HEAD)
+
+          if [ "$before" = "$after" ]; then
+            echo "Already up to date with upstream/main."
+          else
+            git push origin main
+            echo "Synced main: $before -> $after"
+          fi
