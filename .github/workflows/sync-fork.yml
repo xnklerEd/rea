@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   sync:
-    name: Fast-forward main from morluto/rea
+    name: Sync main from morluto/rea
     runs-on: ubuntu-latest
     steps:
       - name: Checkout fork
@@ -24,7 +24,7 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Fast-forward main from upstream
+      - name: Sync main from upstream
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -34,14 +34,17 @@ jobs:
           git remote add upstream https://github.com/morluto/rea.git
           git fetch --no-tags upstream main
 
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "Already up to date with upstream/main."
+            exit 0
+          fi
+
           before=$(git rev-parse HEAD)
-          # Refuse to clobber local commits: only fast-forward is allowed.
-          git merge --ff-only upstream/main
+          # Fork-local commits are kept: fast-forward when possible, otherwise a
+          # merge commit. A plain --ff-only sync fails permanently as soon as the
+          # fork carries its own commits (this workflow file is one).
+          git merge --no-edit -m "chore: sync with morluto/rea" upstream/main
           after=$(git rev-parse HEAD)
 
-          if [ "$before" = "$after" ]; then
-            echo "Already up to date with upstream/main."
-          else
-            git push origin main
-            echo "Synced main: $before -> $after"
-          fi
+          git push origin main
+          echo "Synced main: $before -> $after"
