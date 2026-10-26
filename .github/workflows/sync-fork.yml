@@ -23,6 +23,11 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+          # Pushing a merge of upstream also pushes upstream's own workflow-file
+          # changes; GITHUB_TOKEN cannot do that ("refusing to allow a GitHub App
+          # to create or update workflow ... without `workflows` permission"), so
+          # this needs a token that carries the `workflow` scope.
+          token: ${{ secrets.SYNC_TOKEN }}
 
       - name: Sync main from upstream
         run: |
