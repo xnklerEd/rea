@@ -18,6 +18,7 @@ import {
 } from "../../../src/il2cpp/Il2cppBinaryGenerics.js";
 import {
   createElfFixture,
+  createLargeElfRelativeFixture,
   createIl2cppBinaryFixture,
   createIl2cppDyldBindFixture,
   createIl2cppRegistrationTailFixture,
@@ -907,6 +908,19 @@ it("links an ELF shared object after applying its RELATIVE relocations", () => {
 });
 
 it.each([183, 62])(
+  "streams more than 65536 file-backed relative writes without shrinking IL2CPP capacity (machine %s)",
+  (machine) => {
+    const source = createIl2cppBinaryFixture();
+    const bytes = createLargeElfRelativeFixture(source, 65_537, machine);
+    const snapshot = Buffer.from(bytes);
+    expect(link(bytes).method_addresses).toEqual(
+      link(createElfFixture(source, { machine })).method_addresses,
+    );
+    expect(bytes.equals(snapshot)).toBe(true);
+  },
+);
+
+it.each([183, 62])(
   "links ELF relocations using the resolved PN_XNUM program count (machine %s)",
   (machine) => {
     const original = createElfFixture(createIl2cppBinaryFixture(), { machine });
@@ -1226,6 +1240,17 @@ it("checks the observed slice header against the caller-selected FAT architectur
   ]);
   expect(failure(bytes, "amd64").reason).toBe("malformed-container");
 });
+it.each([1, 0x80000000])(
+  "checks the complete FAT CPU subtype including capability bits (%i)",
+  (subtype) => {
+    const thin = createIl2cppBinaryFixture();
+    thin.writeUInt32LE(subtype, 8);
+    const bytes = createUniversalFixture([{ cpu: 0x0100000c, bytes: thin }]);
+    expect(failure(bytes, "arm64").reason).toBe("malformed-container");
+    bytes.writeUInt32BE(subtype, 12);
+    expect(link(bytes, "arm64").method_addresses).toEqual(expectedAddresses);
+  },
+);
 it("still validates version 27 type indices when rendered names are unavailable", () => {
   const decoded = readIl2cppMetadataForLinking(
     createIl2cppMetadataFixture({ version: 27 }).bytes,
